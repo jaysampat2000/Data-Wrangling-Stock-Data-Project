@@ -1,8 +1,8 @@
-# testjs
+# Start Here
 
 As a passionate stock market enthusiast, I am always finding ways to earn greater returns among the sectors.
 
-Technology stocks always seemed promising due to their innovation practices, sales potential, and earnings growth potential – all-long-term tailwinds.
+Technology stocks always seemed promising due to their innovation practices, sales potential, and earnings growth potential – all long-term tailwinds.
 
 So, I decided to analyze the performance of the 5 largest tech stocks by market capitalization over the last 5 years and compare their average daily return to the stock market to see what I could find.
 
