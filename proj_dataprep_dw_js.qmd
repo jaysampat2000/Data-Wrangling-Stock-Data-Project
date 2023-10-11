@@ -1,0 +1,93 @@
+---
+title: "Proj_DataPrep_dw_js"
+format: html
+editor: visual
+---
+
+1.  **Drop Not Needed Columns**
+
+```{r}
+# load unclean data so you can use it
+load("proj_unclean.RData")
+
+all_data <- all_data[-c(3:6, 8)]
+```
+
+2.  **Store Unique Stock Names**
+
+```{r}
+unique_stock <- unique(all_data$Name)
+```
+
+3.  **Calculate Returns**
+
+```{r}
+# Calculate daily returns
+# data$Returns <- c(NA, diff(data$Adj.Close) / lag(data$Adj.Close))
+
+# Initialize a vector to store returns
+returns <- numeric(nrow(all_data))
+current_stock <- unique_stock[1]
+
+# Calculate returns separately for each stock using for loop
+for (i in 2:nrow(all_data)) {
+  if (all_data$Name[i] != current_stock) {
+    current_stock <- all_data$Name[i]
+    returns[i] <- NA
+  } else {
+    returns[i] <-
+      (all_data$Adj.Close[i] - all_data$Adj.Close[i - 1]) / all_data$Adj.Close[i - 1]
+  }
+}
+
+# put vector into returns column
+all_data$returns <- c(NA, returns[-1])
+
+# remove NA's from vector returns
+# returns <- na.omit(returns)
+
+# filter out the NA's from all_data here
+all_data <- all_data[!is.na(all_data$returns),]
+```
+
+4.  **Convert Date Column to Date Format**
+
+```{r}
+# Convert Date column to Date format
+
+# import and use lubridate library/package
+library(lubridate)
+
+all_data$Date <- lubridate::mdy(all_data$Date)
+
+```
+
+5.  **In Case We Need to Splice By Stock**
+
+```{r}
+# Initialize a list to store data frames for each stock
+stock_data_frame <- list()
+
+# Initialize variables to track the current stock
+current_stock <- unique_stock[1]
+
+# Iterate through the data and split by stock
+for (stock in unique_stock) {
+  stock_data <- subset(all_data, Name == stock)
+  stock_data_frame[[stock]] <- stock_data
+}
+
+```
+
+6.  **In Case We Need a Synthetic Primary Key**
+
+```{r}
+# Add a synthetic primary key column
+all_data <- cbind(Primary_Key = 1:nrow(all_data), all_data)
+```
+
+7.  **Save Cleaned Data To Use in Analytics Tasks**
+
+```{r}
+save(all_data, file = "proj_cleaned.RData")
+```

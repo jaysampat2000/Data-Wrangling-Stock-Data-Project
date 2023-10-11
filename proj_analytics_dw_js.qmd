@@ -1,0 +1,173 @@
+---
+title: "Proj_Analytics_dw_js"
+format: html
+editor: visual
+---
+
+**First you will need to use `unzip` to unzip it.**
+
+```{r}
+unzip(zipfile = "yf_data.zip")
+```
+
+**Next, you will need to generate a vector of all of those files with `list.files`. It works like this:**
+
+```{r}
+file_list <-
+  list.files(
+    "yf_data/",
+    pattern = ".csv",
+    all.files = TRUE,
+    full.names = TRUE
+  )
+```
+
+**Bring files together:**
+
+```{r}
+library(dplyr)
+
+# initialize all_data data frame
+all_data = data.frame()
+
+# read multiple CSV files from file_list and bind them together row-wise into a single data frame
+all_data <- do.call(rbind, lapply(file_list, read.csv))
+
+# we want long data as it is better for visualization
+
+# save your unclean data so you can use it in the prep qmd file
+save(all_data, file = "proj_unclean.RData")
+```
+
+## **Analytic Tasks**
+
+```{r}
+# Load in Cleaned Data
+load("proj_cleaned.RData")
+```
+
+1.  **What is the Average Return and Standard Deviation for Each Stock and the Index? Annualized?**
+
+```{r}
+# Load the dplyr package for data manipulation
+library(dplyr)
+
+# tried using aggregate and mean here but only worked correctly with lag
+# Calculate mean return and standard deviation for each stock
+summary_stats <- all_data %>%
+  group_by(Name) %>%
+  summarize(
+    # M_Ret = aggregate(returns ~ Name, data = all_data, FUN = mean),
+    M_Ret = mean(Adj.Close / lag(Adj.Close) - 1, na.rm = TRUE),
+    # M_Ret = mean(Adj.Close, na.rm = TRUE),
+    # Stdev = sd(Adj.Close, na.rm = TRUE)
+    Stdev = sd(Adj.Close / lag(Adj.Close) - 1, na.rm = TRUE)
+  ) # %>%
+#mutate(M_Ret = sprintf("%.3f%%", 100 * M_Ret),
+#Stdev = sprintf("%.3f", Stdev))
+
+# Number of days in a year (365 days)
+days_per_year <- 365
+
+# Add columns for Ann mean return and standard deviation
+summary_stats <- summary_stats %>%
+  mutate(
+    Ann_M_Ret = as.numeric(M_Ret) * days_per_year,
+    Ann_Stdev = as.numeric(Stdev) * sqrt(days_per_year),
+    M_Ret = sprintf("%.2f%%", 100 * M_Ret),
+    Stdev = sprintf("%.2f", Stdev),
+    Ann_M_Ret = sprintf("%.0f%%", 100 * Ann_M_Ret),
+    Ann_Stdev = sprintf("%.2f", Ann_Stdev)
+  )
+
+library(rmarkdown)
+paged_table(summary_stats)
+```
+
+2.  **What is the Relationship Between the Stocks and the Index?**
+
+```{r}
+library(ggplot2)
+
+# Filter out rows with null (NA) values in the "Returns" column
+# filtered_data <- all_data[!is.na(all_data$returns), ]
+
+# Create a ggplot for returns
+ggplot(all_data, aes(
+  x = Date,
+  y = as.numeric(gsub("%", "", returns)),
+  color = Name
+)) +
+  geom_line() +
+  labs(
+    title = "Daily Stock Returns Over Time",
+    x = "Date",
+    y = "Daily Returns",
+    color = "Stock"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100)) + # Format y-axis as percentage
+  theme_minimal()
+```
+
+**How about plotting stock prices?**
+
+```{r}
+ggplot(all_data, aes(x = Date, y = Adj.Close, color = Name)) +
+  geom_line() +
+  facet_wrap(~ Name, scales = 'free_y') +
+  labs(
+    title = "Stock Prices Over Time v. Index",
+    x = "Date",
+    y = "Stock Price",
+    color = "Stock"
+  ) +
+  # + scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Format y-axis as percentage
+  theme_minimal()
+```
+
+3.  **Which Stocks Beat the Index and by How Much?**
+
+```{r}
+# Remove percentage signs and convert "M_Ret" to numeric
+summary_stats$M_Ret <-
+  as.numeric(gsub("%", "", summary_stats$M_Ret))
+
+# Remove percentage signs and convert "Ann_M_Ret" to numeric
+summary_stats$Ann_M_Ret <-
+  as.numeric(gsub("%", "", summary_stats$Ann_M_Ret))
+
+# make standard deviation numeric
+summary_stats$Stdev <- as.numeric(summary_stats$Stdev)
+
+summary_stats$Ann_Stdev <- as.numeric(summary_stats$Ann_Stdev)
+
+# Get the "^SPY" (S&P 500) Ann mean return value
+# do it like this: nba_data[nba_data$Pos == "C" & nba_data$PTS > 30, ]
+spy_annual_M_Ret <-
+  summary_stats$Ann_M_Ret[summary_stats$Name == "^SPX"]
+
+outperforming_stocks <-
+  summary_stats[summary_stats$Ann_M_Ret > spy_annual_M_Ret,]
+
+summary_stats$five_year <- 5 * summary_stats$Ann_M_Ret
+
+outperforming_stocks$beat_by <-
+  outperforming_stocks$Ann_M_Ret - spy_annual_M_Ret
+
+paged_table(outperforming_stocks)
+
+five_year_beat <- mean(outperforming_stocks$beat_by)
+
+cat("5 Stocks beat market by: ", five_year_beat, "%, on average, yearly")
+```
+
+4.  **What was the Average 5-year Return on the 5 Largest Tech Stocks?**
+
+```{r}
+just_five_largest <- summary_stats[summary_stats$Name != "^SPX",]
+
+five_year_avg <- mean(just_five_largest$five_year)
+
+paged_table(just_five_largest)
+cat("Avg 5-year return: ", five_year_avg, "%")
+```
